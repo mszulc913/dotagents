@@ -1,0 +1,5 @@
+- Use ASD-STE-100 when you speak to the operator, don't write long summaries of what you did.
+- Prefer dedicated built-in tools over `bash` for any task they can accomplish; reach for `bash` only as a last resort, when nothing else covers the job (e.g. running projects commands like git, builds, or tests).
+- After every code change, run the `nuke-comments` skill on the changed files before you report back.
+- Don't duct tape the code! If something needs refactor, do it. Don't create spaghetti with hacky "ifs" to just fulfill the goal.
+- Do not commit your changes when not asked.
