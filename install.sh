@@ -10,8 +10,11 @@ usage() {
   cat <<'USAGE'
 Usage: install.sh [-f|--force] [-H|--home <dir>] [-h|--help]
 
-Symlinks this repo's AGENTS.md and skills/ into the config folders of
-claude, codex, pi, maki and opencode.
+Symlinks this repo's AGENTS.md and each skill in skills/ into the config
+folders of claude, codex, pi, maki and opencode.
+
+The target skills folder is kept as-is. Only entries that collide with a
+skill from this repo are replaced. An empty folder is created if missing.
 
   -f, --force         Replace existing files and dirs without asking. A real
                       file or dir moves to <dest>.bak.<timestamp>; a symlink
@@ -144,10 +147,40 @@ record() {
   esac
 }
 
+install_skills() {
+  local tool="$1" dest="$2" entry name status=0
+
+  if is_current_link "$dest" "$SKILLS_SRC"; then
+    report "$tool" skills "already linked ($dest)"
+    return 0
+  fi
+
+  if path_exists "$dest" && { [ ! -d "$dest" ] || [ -L "$dest" ]; }; then
+    confirm_replace "$tool" skills "$dest" || return 2
+    clear_dest "$tool" skills "$dest" || {
+      report "$tool" skills "failed to replace $dest"
+      return 1
+    }
+  fi
+
+  mkdir -p "$dest" || {
+    report "$tool" skills "failed to create $dest"
+    return 1
+  }
+
+  for entry in "$SKILLS_SRC"/*; do
+    [ -e "$entry" ] || continue
+    name="$(basename "$entry")"
+    install_link "$tool" "skills/$name" "$entry" "$dest/$name" || status=$?
+  done
+
+  return "$status"
+}
+
 install_tool() {
   local tool="$1" instructions_dest="$2" skills_dest="$3"
   install_link "$tool" instructions "$INSTRUCTIONS_SRC" "$instructions_dest" || record $?
-  install_link "$tool" skills "$SKILLS_SRC" "$skills_dest" || record $?
+  install_skills "$tool" "$skills_dest" || record $?
 }
 
 install_tool claude   "$DEST_HOME/.claude/CLAUDE.md"           "$DEST_HOME/.claude/skills"
