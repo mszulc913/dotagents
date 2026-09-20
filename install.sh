@@ -8,13 +8,18 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 usage() {
   cat <<'USAGE'
-Usage: install.sh [-f|--force] [-H|--home <dir>] [-h|--help]
+Usage: install.sh [target] [-f|--force] [-H|--home <dir>] [-h|--help]
 
-Symlinks this repo's AGENTS.md and each skill in skills/ into the config
-folders of claude, codex, pi, maki and opencode.
+Targets:
+  skills   AGENTS.md + skills/ into the config folders of claude, codex,
+           pi, maki and opencode (default when no target is given)
+  sbx      builds the maki sandbox image, sets the openrouter secret from
+           $OPENROUTER_API_KEY, installs a 'maki-sbx' zsh alias and sources
+           it from .zshrc
 
-The target skills folder is kept as-is. Only entries that collide with a
-skill from this repo are replaced. An empty folder is created if missing.
+For skills, the target skills folder is kept as-is. Only entries that
+collide with a skill from this repo are replaced. An empty folder is
+created if missing.
 
   -f, --force         Replace existing files and dirs without asking. A real
                       file or dir moves to <dest>.bak.<timestamp>; a symlink
@@ -46,8 +51,13 @@ report() {
 
 FORCE=false
 DEST_HOME="$HOME"
+TARGET=all
 while [ $# -gt 0 ]; do
   case "$1" in
+    skills|sbx|all)
+      [ "$TARGET" = all ] || die_usage "target given twice"
+      TARGET=$1
+      ;;
     -f|--force) FORCE=true ;;
     -H|--home)
       [ $# -ge 2 ] || die_usage "missing value for $1"
@@ -67,6 +77,7 @@ done
 [ -n "$DEST_HOME" ] || die_usage "--home needs a non-empty value"
 [ -f "$INSTRUCTIONS_SRC" ] || die "$INSTRUCTIONS_SRC not found"
 [ -d "$SKILLS_SRC" ] || die "$SKILLS_SRC not found"
+[ "$TARGET" != sbx ] || [ -d "$REPO_DIR/sandbox/sbx/maki" ] || die "$REPO_DIR/sandbox/sbx/maki not found"
 
 mkdir -p "$DEST_HOME" || die "cannot create $DEST_HOME"
 DEST_HOME="$(cd "$DEST_HOME" && pwd)" || die "cannot resolve $DEST_HOME"
@@ -183,11 +194,113 @@ install_tool() {
   install_skills "$tool" "$skills_dest" || record $?
 }
 
-install_tool claude   "$DEST_HOME/.claude/CLAUDE.md"           "$DEST_HOME/.claude/skills"
-install_tool codex    "$DEST_HOME/.codex/AGENTS.md"            "$DEST_HOME/.codex/skills"
-install_tool pi       "$DEST_HOME/.pi/AGENTS.md"               "$DEST_HOME/.pi/agent/skills"
-install_tool maki     "$DEST_HOME/.config/maki/AGENTS.md"      "$DEST_HOME/.config/maki/skills"
-install_tool opencode "$DEST_HOME/.config/opencode/AGENTS.md"  "$DEST_HOME/.config/opencode/skills"
+install_tool() {
+  local tool="$1" instructions_dest="$2" skills_dest="$3"
+  install_link "$tool" instructions "$INSTRUCTIONS_SRC" "$instructions_dest" || record $?
+  install_skills "$tool" "$skills_dest" || record $?
+}
+
+install_all_tools() {
+  install_tool claude   "$DEST_HOME/.claude/CLAUDE.md"           "$DEST_HOME/.claude/skills"
+  install_tool codex    "$DEST_HOME/.codex/AGENTS.md"            "$DEST_HOME/.codex/skills"
+  install_tool pi       "$DEST_HOME/.pi/AGENTS.md"               "$DEST_HOME/.pi/agent/skills"
+  install_tool maki     "$DEST_HOME/.config/maki/AGENTS.md"      "$DEST_HOME/.config/maki/skills"
+  install_tool opencode "$DEST_HOME/.config/opencode/AGENTS.md"  "$DEST_HOME/.config/opencode/skills"
+}
+
+build_sbx() {
+  command -v docker >/dev/null || {
+    report sbx build "skipped: docker not found"
+    return 0
+  }
+  command -v sbx >/dev/null || {
+    report sbx build "skipped: sbx not found"
+    return 0
+  }
+  "$REPO_DIR/sandbox/sbx/maki/build.sh" || {
+    report sbx build "failed"
+    return 1
+  }
+}
+
+set_sbx_secret() {
+  command -v sbx >/dev/null || {
+    report sbx secret "skipped: sbx not found"
+    return 0
+  }
+  if sbx secret get openrouter >/dev/null 2>&1; then
+    report sbx secret "already set"
+    return 0
+  fi
+  if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+    report sbx secret "skipped: OPENROUTER_API_KEY not set"
+    return 0
+  fi
+  printf '%s' "$OPENROUTER_API_KEY" | sbx secret set openrouter || {
+    report sbx secret "failed"
+    return 1
+  }
+  report sbx secret "set from OPENROUTER_API_KEY"
+}
+
+install_sbx() {
+  build_sbx || record $?
+  set_sbx_secret || record $?
+
+  local kit_src="$REPO_DIR/sandbox/sbx/maki"
+  local alias_dest="$DEST_HOME/.config/dotagents/maki-sbx.zsh"
+  local line="alias maki-sbx='sbx run $kit_src .'"
+
+  if [ -f "$alias_dest" ] && ! [ -L "$alias_dest" ] && [ "$(cat "$alias_dest")" = "$line" ]; then
+    report sbx alias "already installed ($alias_dest)"
+  else
+    if path_exists "$alias_dest"; then
+      confirm_replace sbx alias "$alias_dest" || record 2
+      clear_dest sbx alias "$alias_dest" || {
+        report sbx alias "failed to replace $alias_dest"
+        record 1
+      }
+    fi
+    if ! path_exists "$alias_dest"; then
+      mkdir -p "$(dirname "$alias_dest")" && printf '%s\n' "$line" > "$alias_dest" || {
+        report sbx alias "failed to write $alias_dest"
+        record 1
+      }
+      report sbx alias "installed $alias_dest"
+    fi
+  fi
+
+  install_sbx_rc "$alias_dest"
+}
+
+install_sbx_rc() {
+  local alias_dest="$1" rc="$DEST_HOME/.zshrc"
+  local source_line="source $alias_dest"
+
+  if [ -f "$rc" ] && grep -qF "$source_line" "$rc"; then
+    report sbx zshrc "already sources the alias"
+    return 0
+  fi
+
+  if [ -f "$rc" ]; then
+    printf '\n# maki sandbox alias\n%s\n' "$source_line" >> "$rc" || {
+      report sbx zshrc "failed to update $rc"
+      return 1
+    }
+  else
+    printf '%s\n' "$source_line" > "$rc" || {
+      report sbx zshrc "failed to write $rc"
+      return 1
+    }
+  fi
+  report sbx zshrc "added source line to $rc"
+}
+
+case "$TARGET" in
+  skills) install_all_tools ;;
+  sbx)    install_sbx ;;
+  all)    install_all_tools; install_sbx ;;
+esac
 
 [ "$FAILED" != true ] || exit 1
 [ "$DECLINED" != true ] || exit 2

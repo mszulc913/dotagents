@@ -1,0 +1,33 @@
+schemaVersion: "2"
+kind: sandbox
+name: maki
+displayName: Maki
+description: Maki coding agent (maki.sh), OpenRouter key stays in the host proxy.
+
+sandbox:
+  image: maki-sbx:latest
+  entrypoint:
+    - bash
+    - -c
+    - maki trust --yes >/dev/null 2>&1 || true; exec maki --yolo
+
+credentials:
+  - service: openrouter
+    apiKey:
+      name: OPENROUTER_API_KEY
+      proxyManaged: true
+      inject:
+        - domain: openrouter.ai
+          scheme: bearer
+
+permissions:
+  network:
+    allow:
+      - openrouter.ai
+      - models.dev
+      - pypi.org
+      - files.pythonhosted.org
+
+environment:
+  variables:
+    UV_PROJECT_ENVIRONMENT: /home/agent/venv
