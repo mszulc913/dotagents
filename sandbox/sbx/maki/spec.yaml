@@ -9,7 +9,7 @@ sandbox:
   entrypoint:
     - bash
     - -c
-    - maki trust --yes >/dev/null 2>&1 || true; exec maki --yolo
+    - maki trust --yes >/dev/null 2>&1 || true; exec maki --yolo -m "${MAKI_MODEL:-openrouter/z-ai/glm-5.2}"
 
 credentials:
   - service: openrouter
@@ -31,3 +31,4 @@ permissions:
 environment:
   variables:
     UV_PROJECT_ENVIRONMENT: /home/agent/venv
+    MAKI_MODEL: openrouter/z-ai/glm-5.2

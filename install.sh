@@ -228,7 +228,7 @@ set_sbx_secret() {
     report sbx secret "skipped: sbx not found"
     return 0
   }
-  if sbx secret get openrouter >/dev/null 2>&1; then
+  if sbx secret ls --global --service openrouter --json 2>/dev/null | grep -q '"scope": "global"'; then
     report sbx secret "already set"
     return 0
   fi
