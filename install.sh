@@ -13,9 +13,9 @@ Usage: install.sh [target] [-f|--force] [-H|--home <dir>] [-h|--help]
 Targets:
   skills   AGENTS.md + skills/ into the config folders of claude, codex,
            pi, maki and opencode (default when no target is given)
-  sbx      builds the maki sandbox image, sets the openrouter secret from
-           $OPENROUTER_API_KEY, installs a 'maki-sbx' zsh alias and sources
-           it from .zshrc
+  sbx      builds the maki sandbox image, sets the openrouter secret, installs
+           a 'maki-sbx' zsh alias and sources it from .zshrc. Set SBX_NO_CACHE
+           to rebuild the image layers and upgrade the bundled maki.
 
 For skills, the target skills folder is kept as-is. Only entries that
 collide with a skill from this repo are replaced. An empty folder is
@@ -194,12 +194,6 @@ install_tool() {
   install_skills "$tool" "$skills_dest" || record $?
 }
 
-install_tool() {
-  local tool="$1" instructions_dest="$2" skills_dest="$3"
-  install_link "$tool" instructions "$INSTRUCTIONS_SRC" "$instructions_dest" || record $?
-  install_skills "$tool" "$skills_dest" || record $?
-}
-
 install_all_tools() {
   install_tool claude   "$DEST_HOME/.claude/CLAUDE.md"           "$DEST_HOME/.claude/skills"
   install_tool codex    "$DEST_HOME/.codex/AGENTS.md"            "$DEST_HOME/.codex/skills"
@@ -217,7 +211,10 @@ build_sbx() {
     report sbx build "skipped: sbx not found"
     return 0
   }
-  "$REPO_DIR/sandbox/sbx/maki/build.sh" || {
+
+  local args=()
+  [ -z "${SBX_NO_CACHE:-}" ] || args=(--no-cache)
+  "$REPO_DIR/sandbox/sbx/maki/build.sh" "${args[@]}" || {
     report sbx build "failed"
     return 1
   }
@@ -243,6 +240,24 @@ set_sbx_secret() {
   report sbx secret "set from OPENROUTER_API_KEY"
 }
 
+report_stale_sandboxes() {
+  command -v sbx >/dev/null || return 0
+
+  local stale
+  stale="$(sbx ls 2>/dev/null | awk '$2 == "maki" { print $1 }')"
+  [ -n "$stale" ] || return 0
+
+  local names
+  names="$(printf '%s' "$stale" | tr '\n' ' ')"
+  report sbx sandboxes "stale spec, remove to refresh: $names"
+  if [ "$FORCE" = true ] || confirm_replace sbx sandboxes "maki sandboxes"; then
+    printf '%s\n' "$stale" | xargs -r sbx rm --force >/dev/null || report sbx sandboxes "some removals failed"
+    report sbx sandboxes "removed"
+  else
+    record 2
+  fi
+}
+
 install_sbx() {
   build_sbx || record $?
   set_sbx_secret || record $?
@@ -253,9 +268,10 @@ install_sbx() {
 
   if [ -f "$alias_dest" ] && ! [ -L "$alias_dest" ] && [ "$(cat "$alias_dest")" = "$line" ]; then
     report sbx alias "already installed ($alias_dest)"
+  elif path_exists "$alias_dest" && ! confirm_replace sbx alias "$alias_dest"; then
+    record 2
   else
     if path_exists "$alias_dest"; then
-      confirm_replace sbx alias "$alias_dest" || record 2
       clear_dest sbx alias "$alias_dest" || {
         report sbx alias "failed to replace $alias_dest"
         record 1
@@ -271,6 +287,7 @@ install_sbx() {
   fi
 
   install_sbx_rc "$alias_dest"
+  report_stale_sandboxes
 }
 
 install_sbx_rc() {
