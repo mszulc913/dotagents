@@ -11,6 +11,22 @@ sandbox:
     - -c
     - maki trust --yes >/dev/null 2>&1 || true; exec maki --yolo -m "${MAKI_MODEL:-openrouter/z-ai/glm-5.2}"
 
+setup:
+  startup:
+    - command:
+        - bash
+        - -c
+        - |
+          cfg="$HOME/.config/maki"
+          if [ -n "${DOTAGENTS_REPO:-}" ] && [ -f "$DOTAGENTS_REPO/AGENTS.md" ] && [ -d "$DOTAGENTS_REPO/skills" ]; then
+            mkdir -p "$cfg/skills"
+            ln -sfn "$DOTAGENTS_REPO/AGENTS.md" "$cfg/AGENTS.md"
+            for entry in "$DOTAGENTS_REPO"/skills/*; do
+              ln -sfn "$entry" "$cfg/skills/$(basename "$entry")"
+            done
+          fi
+      description: Link AGENTS.md and skills from the mounted dotagents paths
+
 credentials:
   - service: openrouter
     apiKey:
@@ -31,4 +47,4 @@ permissions:
 environment:
   variables:
     UV_PROJECT_ENVIRONMENT: /home/agent/venv
-    MAKI_MODEL: openrouter/z-ai/glm-5.2
+    MAKI_MODEL: openrouter/z-ai/glm-5.2-flash

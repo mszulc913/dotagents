@@ -249,7 +249,7 @@ install_sbx() {
 
   local kit_src="$REPO_DIR/sandbox/sbx/maki"
   local alias_dest="$DEST_HOME/.config/dotagents/maki-sbx.zsh"
-  local line="alias maki-sbx='sbx run $kit_src .'"
+  local line="alias maki-sbx='$kit_src/run.sh'"
 
   if [ -f "$alias_dest" ] && ! [ -L "$alias_dest" ] && [ "$(cat "$alias_dest")" = "$line" ]; then
     report sbx alias "already installed ($alias_dest)"
