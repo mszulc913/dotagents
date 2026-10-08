@@ -4,30 +4,19 @@ set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd "$HERE/../../.." && pwd)
 
+state="${XDG_STATE_HOME:-$HOME/.local/state}/maki"
+mkdir -p "$state"
+
 case "$PWD" in
-  "$REPO"|"$REPO"/*) paths=("$PWD") ;;
-  *) paths=("$PWD" "$REPO/AGENTS.md:ro" "$REPO/skills:ro") ;;
+  "$REPO"|"$REPO"/*) paths=("$PWD" "$state") ;;
+  *) paths=("$PWD" "$REPO/AGENTS.md:ro" "$REPO/skills:ro" "$state") ;;
 esac
 
 name="maki-$(basename "$PWD")"
+env_args=(-e DOTAGENTS_REPO="$REPO" -e XDG_STATE_HOME="${state%/maki}")
 
-launch() {
-  exec sbx run -e DOTAGENTS_REPO="$REPO" "$HERE" "${paths[@]}"
-}
+if sbx ls | awk -v n="$name" '$1 == n { found = 1 } END { exit !found }'; then
+  exec sbx run "${env_args[@]}" --name "$name"
+fi
 
-output="$(launch 2>&1)" || status=$?
-
-case "${status:-0}" in
-  0) printf '%s\n' "$output" ;;
-  1)
-    if ! printf '%s' "$output" | grep -q "already exists and can't be given new workspaces"; then
-      printf '%s\n' "$output" >&2
-      exit 1
-    fi
-    printf '[sbx] %s has a stale mount set or spec; recreating it.\n' "$name" >&2
-    sbx stop "$name" >/dev/null 2>&1 || true
-    sbx rm --force "$name" || exit 1
-    launch
-    ;;
-  *) printf '%s\n' "$output" >&2; exit "$status" ;;
-esac
+exec sbx run "${env_args[@]}" "$HERE" "${paths[@]}"
