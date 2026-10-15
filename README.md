@@ -23,7 +23,7 @@ Needs `$OPENROUTER_API_KEY` in the environment for the secret (stays on the
 host). Then, from a project:
 
 ```bash
-maki-sbx                # same as: sbx run ~/git/dotagents/sandbox/sbx/maki .
+maki-sbx                # same as: sbx run ~/git/dotagents/sandbox/sbx/maki ~/git
 ```
 
 ## Install
