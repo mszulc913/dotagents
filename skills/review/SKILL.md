@@ -38,11 +38,16 @@ No findings.
 Findings are one line each, formatted as in the template; the ID is `{category number}.{finding number}`. Use `critical`, `high`, `medium`, or `low`, sorted within the section from most to least severe. Focus on actionable findings.
 
 ## Elaborate
-Go through, one at a time, only the findings the operator marked "Elaborate", ordered most to least severe across all categories, critical first. For each finding:
-1. Explain the problem in plain words, assuming no knowledge of this part of the codebase: what the code does now, what is wrong with it, and what goes wrong in practice.
-2. Lay out the candidate fixes side by side.
-3. Ask whether to proceed with a fix or skip. If the operator picks a fix, record the choice.
-4. Move to the next finding. If the operator skips, note it and continue.
+Go through, one at a time, only the findings the operator marked "Elaborate", most severe first across all categories. The operator asked for detail, so brevity rules do not apply; do not restate the finding line.
+
+For each finding, re-read the code and its callers, then explain in a message. The reader likely did not write this code and has little or no mental model of it, so build that model first:
+1. What the code does now and where it sits in the flow, quoting the relevant lines.
+2. Where and why it goes wrong, with a real scenario that triggers it.
+3. The candidate fixes side by side, each with a code sketch and its trade-off, and your recommendation.
+
+Draw a plain-text diagram of the call flow, data flow, or states when it shows the problem faster than prose.
+
+Then ask in a `question`/`ask_user` or similar tool call: one of the fixes, or skip. Keep the explanation out of the question. Record the decision and move to the next finding.
 
 Do not change any code during this phase. Findings already marked "Move forward" or "Move forward: <solution>" keep that decision and need no elaboration. Collect all decisions first, then run Implement.
 
