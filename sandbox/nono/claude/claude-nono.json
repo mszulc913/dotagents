@@ -1,0 +1,62 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "extends": ["dev-nono", "claude-nono-base"],
+  "meta": {
+    "name": "claude-nono",
+    "version": "1.0.0",
+    "description": "Claude Code with AF_UNIX isolation and phantom OAuth tokens, no CUDA"
+  },
+  "filesystem": {
+    "allow": [
+      "$XDG_STATE_HOME/claude-nono"
+    ]
+  },
+  "environment": {
+    "set_vars": {
+      "CLAUDE_CONFIG_DIR": "$XDG_STATE_HOME/claude-nono"
+    }
+  },
+  "credential_providers": {
+    "claude_code": {
+      "type": "oauth_capture",
+      "token_endpoints": [
+        {
+          "host": "https://platform.claude.com",
+          "path": "/v1/oauth/token",
+          "response_fields": [
+            { "path": "access_token", "kind": "opaque", "format": "sk-ant-oat01-{}" },
+            { "path": "refresh_token", "kind": "opaque" },
+            { "path": "id_token", "kind": "jwt" }
+          ],
+          "request_body": "auto",
+          "request_nonce_fields": ["access_token", "refresh_token"]
+        }
+      ],
+      "api_hosts": ["https://api.anthropic.com"],
+      "credential_store": {
+        "type": "file_json",
+        "path": "$XDG_STATE_HOME/claude-nono/.credentials.json",
+        "phantom_fields": [
+          "claudeAiOauth.accessToken",
+          "claudeAiOauth.refreshToken"
+        ]
+      }
+    }
+  },
+  "credential_routes": [
+    {
+      "name": "anthropic_oauth",
+      "provider": "claude_code",
+      "endpoint_policy": {
+        "default": { "decision": "allow" },
+        "deny": [
+          {
+            "method": "*",
+            "path": "/api/oauth/claude_cli/create_api_key",
+            "reason": "the sandbox must not mint long-lived API keys"
+          }
+        ]
+      }
+    }
+  ]
+}

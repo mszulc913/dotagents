@@ -1,0 +1,19 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "extends": ["dev-nono-gpu", "claude-nono-base"],
+  "meta": {
+    "name": "claude-nono-gpu",
+    "version": "1.0.0",
+    "description": "Claude Code with CUDA; real OAuth tokens, AF_UNIX sockets stay reachable"
+  },
+  "filesystem": {
+    "allow": [
+      "$XDG_STATE_HOME/claude-nono-gpu"
+    ]
+  },
+  "environment": {
+    "set_vars": {
+      "CLAUDE_CONFIG_DIR": "$XDG_STATE_HOME/claude-nono-gpu"
+    }
+  }
+}

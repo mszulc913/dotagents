@@ -1,0 +1,50 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "meta": {
+    "name": "claude-nono-base",
+    "version": "1.0.0",
+    "description": "Claude Code runtime paths, shared by claude-nono and claude-nono-gpu"
+  },
+  "groups": {
+    "include": [
+      "claude_code_linux",
+      "claude_cache_linux"
+    ]
+  },
+  "filesystem": {
+    "allow": [
+      "$HOME/.cache/claude",
+      "$XDG_STATE_HOME/claude/locks",
+      "/tmp/claude-$UID"
+    ],
+    "unix_socket_dir_bind": [
+      "$XDG_RUNTIME_DIR/cc-socks"
+    ]
+  },
+  "environment": {
+    "set_vars": {
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    }
+  },
+  "network": {
+    "allow_domain": [
+      "claude.com",
+      {
+        "domain": "platform.claude.com",
+        "endpoints": [
+          { "method": "GET", "path": "/v1/oauth/hello" },
+          { "method": "POST", "path": "/v1/oauth/token" }
+        ]
+      }
+    ],
+    "listen_port": [0]
+  },
+  "open_urls": {
+    "allow_origins": [
+      "https://claude.ai",
+      "https://claude.com",
+      "https://platform.claude.com"
+    ],
+    "allow_localhost": true
+  }
+}

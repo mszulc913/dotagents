@@ -4,18 +4,30 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTRUCTIONS_SRC="$REPO_DIR/AGENTS.md"
 SKILLS_SRC="$REPO_DIR/skills"
+SBX_SRC="$REPO_DIR/sandbox/sbx/maki"
+NONO_SRC="$REPO_DIR/sandbox/nono"
+TARGET_NAMES=(skills sbx nono)
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 usage() {
   cat <<'USAGE'
-Usage: install.sh [target] [-f|--force] [-H|--home <dir>] [-h|--help]
+Usage: install.sh [target...] [-f|--force] [-H|--home <dir>] [-h|--help]
 
 Targets:
   skills   AGENTS.md + skills/ into the config folders of claude, codex,
-           pi, maki and opencode (default when no target is given)
+           pi, maki and opencode
   sbx      builds the maki sandbox image, sets the openrouter secret, installs
            a 'maki-sbx' zsh alias and sources it from .zshrc. Set SBX_NO_CACHE
            to rebuild the image layers and upgrade the bundled maki.
+  nono     copies the nono profiles into nono's profile folder and the
+           claude-nono and maki-nono launchers to ~/.local/bin, and links
+           AGENTS.md + skills/ into the sandboxed Claude config folders. These
+           are copies, not links: the sandbox can write ~/git, so it must not
+           edit its policy.
+  all      all of the above
+
+Without a target, install.sh asks about each target. An empty answer, or no
+terminal to ask on, installs it.
 
 For skills, the target skills folder is kept as-is. Only entries that
 collide with a skill from this repo are replaced. An empty folder is
@@ -30,7 +42,7 @@ created if missing.
 Without --force, every existing file or dir asks for confirmation. An empty
 answer, or no terminal to ask on, keeps the existing file.
 
-Exit status: 0 all targets are linked, 1 a target failed, 2 a target was kept.
+Exit status: 0 all targets are installed, 1 a target failed, 2 a target was kept.
 USAGE
 }
 
@@ -49,14 +61,44 @@ report() {
   echo "[$1] $2: $3"
 }
 
+ask() {
+  local prompt="$1" default="$2" answer=""
+
+  if [ -r /dev/tty ]; then
+    read -r -p "$prompt " answer </dev/tty || answer=""
+  fi
+  case "${answer:-$default}" in
+    y|Y|yes|YES) return 0 ;;
+  esac
+  return 1
+}
+
+describe_target() {
+  case "$1" in
+    skills) echo "AGENTS.md + skills for claude, codex, pi, maki and opencode" ;;
+    sbx)    echo "maki-sbx, maki in a Docker Sandboxes microVM" ;;
+    nono)   echo "claude-nono and maki-nono, agents in a nono sandbox" ;;
+  esac
+}
+
+TARGETS=()
+add_target() {
+  local target
+  for target in "${TARGETS[@]}"; do
+    [ "$target" != "$1" ] || return 0
+  done
+  TARGETS+=("$1")
+}
+
 FORCE=false
 DEST_HOME="$HOME"
-TARGET=all
 while [ $# -gt 0 ]; do
   case "$1" in
-    skills|sbx|all)
-      [ "$TARGET" = all ] || die_usage "target given twice"
-      TARGET=$1
+    skills|sbx|nono) add_target "$1" ;;
+    all)
+      for target in "${TARGET_NAMES[@]}"; do
+        add_target "$target"
+      done
       ;;
     -f|--force) FORCE=true ;;
     -H|--home)
@@ -77,7 +119,22 @@ done
 [ -n "$DEST_HOME" ] || die_usage "--home needs a non-empty value"
 [ -f "$INSTRUCTIONS_SRC" ] || die "$INSTRUCTIONS_SRC not found"
 [ -d "$SKILLS_SRC" ] || die "$SKILLS_SRC not found"
-[ "$TARGET" != sbx ] || [ -d "$REPO_DIR/sandbox/sbx/maki" ] || die "$REPO_DIR/sandbox/sbx/maki not found"
+
+if [ ${#TARGETS[@]} -eq 0 ]; then
+  for target in "${TARGET_NAMES[@]}"; do
+    if ask "Install $target ($(describe_target "$target"))? [Y/n]" y; then
+      add_target "$target"
+    fi
+  done
+fi
+[ ${#TARGETS[@]} -gt 0 ] || { echo "nothing to install"; exit 0; }
+
+for target in "${TARGETS[@]}"; do
+  case "$target" in
+    sbx)  [ -d "$SBX_SRC" ] || die "$SBX_SRC not found" ;;
+    nono) [ -d "$NONO_SRC" ] || die "$NONO_SRC not found" ;;
+  esac
+done
 
 mkdir -p "$DEST_HOME" || die "cannot create $DEST_HOME"
 DEST_HOME="$(cd "$DEST_HOME" && pwd)" || die "cannot resolve $DEST_HOME"
@@ -94,14 +151,7 @@ confirm_replace() {
   local tool="$1" label="$2" dest="$3"
 
   [ "$FORCE" != true ] || return 0
-
-  local answer=""
-  if [ -r /dev/tty ]; then
-    read -r -p "[$tool] $label: $dest exists. Replace? [y/N] " answer </dev/tty || answer=""
-  fi
-  case "$answer" in
-    y|Y|yes|YES) return 0 ;;
-  esac
+  ask "[$tool] $label: $dest exists. Replace? [y/N]" n && return 0
 
   report "$tool" "$label" "kept existing ($dest)"
   return 1
@@ -147,6 +197,29 @@ install_link() {
     return 1
   }
   report "$tool" "$label" "linked $dest -> $src"
+}
+
+install_copy() {
+  local tool="$1" label="$2" src="$3" dest="$4" mode="$5"
+
+  if [ -f "$dest" ] && ! [ -L "$dest" ] && cmp -s "$src" "$dest"; then
+    report "$tool" "$label" "already installed ($dest)"
+    return 0
+  fi
+
+  if path_exists "$dest"; then
+    confirm_replace "$tool" "$label" "$dest" || return 2
+    clear_dest "$tool" "$label" "$dest" || {
+      report "$tool" "$label" "failed to replace $dest"
+      return 1
+    }
+  fi
+
+  mkdir -p "$(dirname "$dest")" && install -m "$mode" "$src" "$dest" || {
+    report "$tool" "$label" "failed to copy $dest"
+    return 1
+  }
+  report "$tool" "$label" "copied $src -> $dest"
 }
 
 FAILED=false
@@ -214,7 +287,7 @@ build_sbx() {
 
   local args=()
   [ -z "${SBX_NO_CACHE:-}" ] || args=(--no-cache)
-  "$REPO_DIR/sandbox/sbx/maki/build.sh" "${args[@]}" || {
+  "$SBX_SRC/build.sh" "${args[@]}" || {
     report sbx build "failed"
     return 1
   }
@@ -262,9 +335,8 @@ install_sbx() {
   build_sbx || record $?
   set_sbx_secret || record $?
 
-  local kit_src="$REPO_DIR/sandbox/sbx/maki"
   local alias_dest="$DEST_HOME/.config/dotagents/maki-sbx.zsh"
-  local line="alias maki-sbx='$kit_src/run.sh'"
+  local line="alias maki-sbx='$SBX_SRC/run.sh'"
 
   if [ -f "$alias_dest" ] && ! [ -L "$alias_dest" ] && [ "$(cat "$alias_dest")" = "$line" ]; then
     report sbx alias "already installed ($alias_dest)"
@@ -313,11 +385,30 @@ install_sbx_rc() {
   report sbx zshrc "added source line to $rc"
 }
 
-case "$TARGET" in
-  skills) install_all_tools ;;
-  sbx)    install_sbx ;;
-  all)    install_all_tools; install_sbx ;;
-esac
+install_nono() {
+  local state="$DEST_HOME/.local/state" file dir name
+
+  for file in "$NONO_SRC"/*.json "$NONO_SRC"/*/*.json; do
+    name="$(basename "$file" .json)"
+    install_copy nono "profile $name" "$file" \
+      "$DEST_HOME/.config/nono/profiles/$name.json" 644 || record $?
+  done
+  for dir in "$NONO_SRC"/*/; do
+    name="$(basename "$dir")-nono"
+    install_copy nono "launcher $name" "$NONO_SRC/run.sh" "$DEST_HOME/.local/bin/$name" 755 || record $?
+  done
+
+  install_tool claude-nono     "$state/claude-nono/CLAUDE.md"     "$state/claude-nono/skills"
+  install_tool claude-nono-gpu "$state/claude-nono-gpu/CLAUDE.md" "$state/claude-nono-gpu/skills"
+}
+
+for target in "${TARGETS[@]}"; do
+  case "$target" in
+    skills) install_all_tools ;;
+    sbx)    install_sbx ;;
+    nono)   install_nono ;;
+  esac
+done
 
 [ "$FAILED" != true ] || exit 1
 [ "$DECLINED" != true ] || exit 2

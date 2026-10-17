@@ -1,0 +1,22 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "extends": ["dev-nono-gpu", "maki-nono-base"],
+  "meta": {
+    "name": "maki-nono-gpu",
+    "version": "1.0.0",
+    "description": "Maki with CUDA; real credentials, AF_UNIX sockets stay reachable"
+  },
+  "filesystem": {
+    "allow": [
+      "$XDG_STATE_HOME/maki-nono-gpu"
+    ]
+  },
+  "environment": {
+    "set_vars": {
+      "XDG_STATE_HOME": "$XDG_STATE_HOME/maki-nono-gpu/state"
+    }
+  },
+  "env_credentials": {
+    "openrouter_api_key": "OPENROUTER_API_KEY"
+  }
+}

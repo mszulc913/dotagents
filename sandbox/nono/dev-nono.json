@@ -1,0 +1,112 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "extends": "default",
+  "meta": {
+    "name": "dev-nono",
+    "version": "1.0.0",
+    "description": "Dev sandbox: ~/git, dev caches, env and network allowlists, AF_UNIX isolation"
+  },
+  "groups": {
+    "include": [
+      "node_runtime",
+      "python_runtime",
+      "rust_runtime",
+      "git_config",
+      "linux_sysfs_read",
+      "unlink_protection"
+    ]
+  },
+  "workdir": {
+    "access": "readwrite"
+  },
+  "filesystem": {
+    "allow": [
+      "$HOME/git",
+      "$HOME/.cache/uv",
+      "$HOME/.local/share/uv/python",
+      "$HOME/.cache/pip",
+      "$HOME/.npm",
+      "$HOME/.cache/pnpm",
+      "$HOME/.local/share/pnpm/store",
+      "$HOME/.cargo/registry",
+      "$HOME/.cargo/git",
+      "$HOME/.cache/huggingface",
+      "$HOME/.cache/torch",
+      "$HOME/.cache/torch_extensions",
+      "$HOME/.triton",
+      "$HOME/.nv"
+    ],
+    "allow_file": [
+      "$HOME/.cargo/.package-cache",
+      "$HOME/.cargo/.package-cache-mutate",
+      "$HOME/.cargo/.global-cache"
+    ]
+  },
+  "linux": {
+    "af_unix_mediation": "pathname"
+  },
+  "environment": {
+    "allow_vars": [
+      "PATH",
+      "HOME",
+      "USER",
+      "LOGNAME",
+      "SHELL",
+      "TERM",
+      "TERMINFO",
+      "TERM_PROGRAM",
+      "TERM_PROGRAM_VERSION",
+      "COLORTERM",
+      "NO_COLOR",
+      "FORCE_COLOR",
+      "LS_COLORS",
+      "LSCOLORS",
+      "LANG",
+      "LANGUAGE",
+      "LC_*",
+      "TZ",
+      "EDITOR",
+      "VISUAL",
+      "PAGER",
+      "LESS",
+      "GIT_EDITOR",
+      "TMPDIR",
+      "XDG_RUNTIME_DIR",
+      "XDG_CONFIG_HOME",
+      "XDG_DATA_HOME",
+      "XDG_STATE_HOME",
+      "XDG_CACHE_HOME",
+      "FNM_*",
+      "PNPM_HOME",
+      "COREPACK_*",
+      "CARGO_HOME",
+      "RUSTUP_HOME",
+      "UV_*",
+      "CUDACXX",
+      "CUDA_*"
+    ],
+    "deny_vars": [
+      "*TOKEN*",
+      "*SECRET*",
+      "*PASSWORD*",
+      "*CREDENTIAL*",
+      "*_KEY",
+      "*_KEY_*",
+      "*APIKEY*"
+    ],
+    "case_insensitive_vars": true
+  },
+  "network": {
+    "network_profile": "developer",
+    "allow_domain": [
+      "astral.sh",
+      "release-assets.githubusercontent.com",
+      "download.pytorch.org",
+      "pypi.nvidia.com",
+      "huggingface.co",
+      "*.huggingface.co",
+      "hf.co",
+      "*.hf.co"
+    ]
+  }
+}

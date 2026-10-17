@@ -1,0 +1,68 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "extends": ["dev-nono", "maki-nono-base"],
+  "meta": {
+    "name": "maki-nono",
+    "version": "1.0.0",
+    "description": "Maki with AF_UNIX isolation and phantom OpenRouter and OpenAI credentials, no CUDA"
+  },
+  "filesystem": {
+    "allow": [
+      "$XDG_STATE_HOME/maki-nono"
+    ]
+  },
+  "environment": {
+    "set_vars": {
+      "XDG_STATE_HOME": "$XDG_STATE_HOME/maki-nono/state"
+    }
+  },
+  "network": {
+    "credentials": ["openrouter"],
+    "custom_credentials": {
+      "openrouter": {
+        "upstream": "https://openrouter.ai/api/v1",
+        "credential_key": "openrouter_api_key",
+        "inject_header": "Authorization",
+        "credential_format": "Bearer {}",
+        "env_var": "OPENROUTER_API_KEY"
+      }
+    }
+  },
+  "credential_providers": {
+    "openai_chatgpt": {
+      "type": "oauth_capture",
+      "token_endpoints": [
+        {
+          "host": "https://auth.openai.com",
+          "path": "/oauth/token",
+          "response_fields": [
+            { "path": "access_token", "kind": "opaque" },
+            { "path": "refresh_token", "kind": "opaque" },
+            { "path": "id_token", "kind": "jwt" }
+          ],
+          "request_body": "form",
+          "request_nonce_fields": ["refresh_token"]
+        }
+      ],
+      "api_hosts": ["https://chatgpt.com"],
+      "credential_store": {
+        "type": "file_json",
+        "path": "$XDG_STATE_HOME/maki-nono/state/maki/auth/openai.json",
+        "phantom_fields": ["access", "refresh"]
+      }
+    }
+  },
+  "credential_routes": [
+    {
+      "name": "openai_chatgpt",
+      "provider": "openai_chatgpt",
+      "endpoint_policy": {
+        "default": { "decision": "deny" },
+        "allow": [
+          { "method": "*", "path": "/backend-api/codex/**" },
+          { "method": "GET", "path": "/backend-api/wham/usage" }
+        ]
+      }
+    }
+  ]
+}
