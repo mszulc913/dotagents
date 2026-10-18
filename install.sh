@@ -151,8 +151,10 @@ report_failed() {
 ask() {
   local prompt="$1" default="$2" answer=""
 
-  if [ -r /dev/tty ]; then
-    read -r -p "$prompt " answer </dev/tty 2>/dev/null || answer=""
+  if { exec 3<>/dev/tty; } 2>/dev/null; then
+    printf '%s ' "$prompt" >&3
+    read -r answer <&3 || answer=""
+    exec 3<&-
   fi
   case "${answer:-$default}" in
     y|Y|yes|YES) return 0 ;;

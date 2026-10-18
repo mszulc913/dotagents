@@ -22,6 +22,9 @@ case "$agent" in
     ;;
   maki)
     mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/maki"
+    if [ "$profile" = maki-nono-gpu ]; then
+      mkdir -p "$state/maki"
+    fi
     ;;
   *)
     echo "unknown agent '$agent': install this script as claude-nono or maki-nono" >&2
