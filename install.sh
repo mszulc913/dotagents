@@ -11,7 +11,7 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 usage() {
   cat <<'USAGE'
-Usage: install.sh [target...] [-f|--force] [-H|--home <dir>] [-h|--help]
+Usage: install.sh [target...] [-f|--force] [-v|--verbose] [-H|--home <dir>] [-h|--help]
 
 Targets:
   skills   AGENTS.md + skills/ into the config folders of claude, codex,
@@ -36,8 +36,12 @@ created if missing.
   -f, --force         Replace existing files and dirs without asking. A real
                       file or dir moves to <dest>.bak.<timestamp>; a symlink
                       is removed.
+  -v, --verbose       Also list items that are already up to date
   -H, --home <dir>    Base the targets on <dir> instead of $HOME
   -h, --help          Show this help
+
+Each target prints a summary line such as 'nono: 2 changed, 16 unchanged'.
+Changed items print below the summary. Unchanged items print only with --verbose.
 
 Without --force, every existing file or dir asks for confirmation. An empty
 answer, or no terminal to ask on, keeps the existing file.
@@ -57,15 +61,98 @@ die_usage() {
   exit 1
 }
 
-report() {
-  echo "[$1] $2: $3"
+GROUP=""
+DETAILS=""
+BACKUP=""
+CHANGED=0
+UNCHANGED=0
+KEPT=0
+SKIPPED=0
+FAILS=0
+
+begin_group() {
+  GROUP="$1"
+  DETAILS=""
+  BACKUP=""
+  CHANGED=0
+  UNCHANGED=0
+  KEPT=0
+  SKIPPED=0
+  FAILS=0
+}
+
+end_group() {
+  local summary=""
+
+  if [ "$CHANGED" -eq 0 ] && [ "$KEPT" -eq 0 ] && [ "$SKIPPED" -eq 0 ] && [ "$FAILS" -eq 0 ]; then
+    echo "$GROUP: up to date"
+  else
+    [ "$CHANGED" -eq 0 ] || summary="$CHANGED changed"
+    [ "$UNCHANGED" -eq 0 ] || summary="${summary:+$summary, }$UNCHANGED unchanged"
+    [ "$KEPT" -eq 0 ] || summary="${summary:+$summary, }$KEPT kept"
+    [ "$SKIPPED" -eq 0 ] || summary="${summary:+$summary, }$SKIPPED skipped"
+    [ "$FAILS" -eq 0 ] || summary="${summary:+$summary, }$FAILS failed"
+    echo "$GROUP: $summary"
+  fi
+  [ -z "$DETAILS" ] || printf '%s' "$DETAILS"
+}
+
+short_path() {
+  case "$1" in
+    "$DEST_HOME") echo "~" ;;
+    "$DEST_HOME"/*) echo "~${1#"$DEST_HOME"}" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+detail_label() {
+  if [ "$1" = "$GROUP" ]; then
+    printf '%s' "$2"
+  else
+    printf '%s %s' "$1" "$2"
+  fi
+}
+
+add_detail() {
+  DETAILS="${DETAILS}  $(detail_label "$1" "$2"): $3"$'\n'
+}
+
+report_changed() {
+  CHANGED=$((CHANGED + 1))
+  add_detail "$1" "$2" "$3${BACKUP:+ (backup: $BACKUP)}"
+  BACKUP=""
+}
+
+report_unchanged() {
+  UNCHANGED=$((UNCHANGED + 1))
+  [ "$VERBOSE" != true ] || add_detail "$1" "$2" "$3"
+}
+
+report_kept() {
+  KEPT=$((KEPT + 1))
+  add_detail "$1" "$2" "$3"
+}
+
+report_skipped() {
+  SKIPPED=$((SKIPPED + 1))
+  add_detail "$1" "$2" "$3"
+}
+
+report_note() {
+  add_detail "$1" "$2" "$3"
+}
+
+report_failed() {
+  FAILS=$((FAILS + 1))
+  BACKUP=""
+  echo "[$GROUP] $(detail_label "$1" "$2"): $3" >&2
 }
 
 ask() {
   local prompt="$1" default="$2" answer=""
 
   if [ -r /dev/tty ]; then
-    read -r -p "$prompt " answer </dev/tty || answer=""
+    read -r -p "$prompt " answer </dev/tty 2>/dev/null || answer=""
   fi
   case "${answer:-$default}" in
     y|Y|yes|YES) return 0 ;;
@@ -91,6 +178,7 @@ add_target() {
 }
 
 FORCE=false
+VERBOSE=false
 DEST_HOME="$HOME"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -101,6 +189,7 @@ while [ $# -gt 0 ]; do
       done
       ;;
     -f|--force) FORCE=true ;;
+    -v|--verbose) VERBOSE=true ;;
     -H|--home)
       [ $# -ge 2 ] || die_usage "missing value for $1"
       DEST_HOME="$2"
@@ -151,18 +240,19 @@ confirm_replace() {
   local tool="$1" label="$2" dest="$3"
 
   [ "$FORCE" != true ] || return 0
-  ask "[$tool] $label: $dest exists. Replace? [y/N]" n && return 0
+  ask "[$GROUP] $(detail_label "$tool" "$label"): $(short_path "$dest") exists. Replace? [y/N]" n && return 0
 
-  report "$tool" "$label" "kept existing ($dest)"
+  report_kept "$tool" "$label" "kept existing"
   return 1
 }
 
 clear_dest() {
   local tool="$1" label="$2" dest="$3"
 
+  BACKUP=""
+
   if [ -L "$dest" ]; then
     rm -f "$dest" || return 1
-    report "$tool" "$label" "removed existing symlink"
     return 0
   fi
 
@@ -173,53 +263,55 @@ clear_dest() {
   done
 
   mv "$dest" "$backup" || return 1
-  report "$tool" "$label" "moved existing to $backup"
+  BACKUP="$(basename "$backup")"
 }
 
 install_link() {
-  local tool="$1" label="$2" src="$3" dest="$4"
+  local tool="$1" label="$2" src="$3" dest="$4" action="linked"
 
   if is_current_link "$dest" "$src"; then
-    report "$tool" "$label" "already linked ($dest)"
+    report_unchanged "$tool" "$label" "already linked ($(short_path "$dest"))"
     return 0
   fi
 
   if path_exists "$dest"; then
+    action="replaced"
     confirm_replace "$tool" "$label" "$dest" || return 2
     clear_dest "$tool" "$label" "$dest" || {
-      report "$tool" "$label" "failed to replace $dest"
+      report_failed "$tool" "$label" "failed to replace $(short_path "$dest")"
       return 1
     }
   fi
 
   mkdir -p "$(dirname "$dest")" && ln -s "$src" "$dest" || {
-    report "$tool" "$label" "failed to link $dest"
+    report_failed "$tool" "$label" "failed to link $(short_path "$dest")"
     return 1
   }
-  report "$tool" "$label" "linked $dest -> $src"
+  report_changed "$tool" "$label" "$action"
 }
 
 install_copy() {
-  local tool="$1" label="$2" src="$3" dest="$4" mode="$5"
+  local tool="$1" label="$2" src="$3" dest="$4" mode="$5" action="installed"
 
   if [ -f "$dest" ] && ! [ -L "$dest" ] && cmp -s "$src" "$dest"; then
-    report "$tool" "$label" "already installed ($dest)"
+    report_unchanged "$tool" "$label" "already installed ($(short_path "$dest"))"
     return 0
   fi
 
   if path_exists "$dest"; then
+    action="replaced"
     confirm_replace "$tool" "$label" "$dest" || return 2
     clear_dest "$tool" "$label" "$dest" || {
-      report "$tool" "$label" "failed to replace $dest"
+      report_failed "$tool" "$label" "failed to replace $(short_path "$dest")"
       return 1
     }
   fi
 
   mkdir -p "$(dirname "$dest")" && install -m "$mode" "$src" "$dest" || {
-    report "$tool" "$label" "failed to copy $dest"
+    report_failed "$tool" "$label" "failed to copy $(short_path "$dest")"
     return 1
   }
-  report "$tool" "$label" "copied $src -> $dest"
+  report_changed "$tool" "$label" "$action"
 }
 
 FAILED=false
@@ -235,20 +327,20 @@ install_skills() {
   local tool="$1" dest="$2" entry name status=0
 
   if is_current_link "$dest" "$SKILLS_SRC"; then
-    report "$tool" skills "already linked ($dest)"
+    report_unchanged "$tool" skills "already linked ($(short_path "$dest"))"
     return 0
   fi
 
   if path_exists "$dest" && { [ ! -d "$dest" ] || [ -L "$dest" ]; }; then
     confirm_replace "$tool" skills "$dest" || return 2
     clear_dest "$tool" skills "$dest" || {
-      report "$tool" skills "failed to replace $dest"
+      report_failed "$tool" skills "failed to replace $(short_path "$dest")"
       return 1
     }
   fi
 
   mkdir -p "$dest" || {
-    report "$tool" skills "failed to create $dest"
+    report_failed "$tool" skills "failed to create $(short_path "$dest")"
     return 1
   }
 
@@ -277,40 +369,40 @@ install_all_tools() {
 
 build_sbx() {
   command -v docker >/dev/null || {
-    report sbx build "skipped: docker not found"
+    report_skipped sbx build "skipped: docker not found"
     return 0
   }
   command -v sbx >/dev/null || {
-    report sbx build "skipped: sbx not found"
+    report_skipped sbx build "skipped: sbx not found"
     return 0
   }
 
   local args=()
   [ -z "${SBX_NO_CACHE:-}" ] || args=(--no-cache)
   "$SBX_SRC/build.sh" "${args[@]}" || {
-    report sbx build "failed"
+    report_failed sbx build "failed"
     return 1
   }
 }
 
 set_sbx_secret() {
   command -v sbx >/dev/null || {
-    report sbx secret "skipped: sbx not found"
+    report_skipped sbx secret "skipped: sbx not found"
     return 0
   }
   if sbx secret ls --global --service openrouter --json 2>/dev/null | grep -q '"scope": "global"'; then
-    report sbx secret "already set"
+    report_unchanged sbx secret "already set"
     return 0
   fi
   if [ -z "${OPENROUTER_API_KEY:-}" ]; then
-    report sbx secret "skipped: OPENROUTER_API_KEY not set"
+    report_skipped sbx secret "skipped: OPENROUTER_API_KEY not set"
     return 0
   fi
   printf '%s' "$OPENROUTER_API_KEY" | sbx secret set openrouter || {
-    report sbx secret "failed"
+    report_failed sbx secret "failed"
     return 1
   }
-  report sbx secret "set from OPENROUTER_API_KEY"
+  report_changed sbx secret "set"
 }
 
 report_stale_sandboxes() {
@@ -322,10 +414,10 @@ report_stale_sandboxes() {
 
   local names
   names="$(printf '%s' "$stale" | tr '\n' ' ')"
-  report sbx sandboxes "stale spec, remove to refresh: $names"
+  report_note sbx sandboxes "stale spec: $names"
   if [ "$FORCE" = true ] || confirm_replace sbx sandboxes "maki sandboxes"; then
-    printf '%s\n' "$stale" | xargs -r sbx rm --force >/dev/null || report sbx sandboxes "some removals failed"
-    report sbx sandboxes "removed"
+    printf '%s\n' "$stale" | xargs -r sbx rm --force >/dev/null || report_failed sbx sandboxes "some removals failed"
+    report_changed sbx sandboxes "removed"
   else
     record 2
   fi
@@ -339,22 +431,22 @@ install_sbx() {
   local line="alias maki-sbx='$SBX_SRC/run.sh'"
 
   if [ -f "$alias_dest" ] && ! [ -L "$alias_dest" ] && [ "$(cat "$alias_dest")" = "$line" ]; then
-    report sbx alias "already installed ($alias_dest)"
+    report_unchanged sbx alias "already installed ($(short_path "$alias_dest"))"
   elif path_exists "$alias_dest" && ! confirm_replace sbx alias "$alias_dest"; then
     record 2
   else
     if path_exists "$alias_dest"; then
       clear_dest sbx alias "$alias_dest" || {
-        report sbx alias "failed to replace $alias_dest"
+        report_failed sbx alias "failed to replace $(short_path "$alias_dest")"
         record 1
       }
     fi
     if ! path_exists "$alias_dest"; then
       mkdir -p "$(dirname "$alias_dest")" && printf '%s\n' "$line" > "$alias_dest" || {
-        report sbx alias "failed to write $alias_dest"
+        report_failed sbx alias "failed to write $(short_path "$alias_dest")"
         record 1
       }
-      report sbx alias "installed $alias_dest"
+      report_changed sbx alias "installed"
     fi
   fi
 
@@ -367,22 +459,22 @@ install_sbx_rc() {
   local source_line="source $alias_dest"
 
   if [ -f "$rc" ] && grep -qF "$source_line" "$rc"; then
-    report sbx zshrc "already sources the alias"
+    report_unchanged sbx zshrc "already sources the alias"
     return 0
   fi
 
   if [ -f "$rc" ]; then
     printf '\n# maki sandbox alias\n%s\n' "$source_line" >> "$rc" || {
-      report sbx zshrc "failed to update $rc"
+      report_failed sbx zshrc "failed to update $(short_path "$rc")"
       return 1
     }
   else
     printf '%s\n' "$source_line" > "$rc" || {
-      report sbx zshrc "failed to write $rc"
+      report_failed sbx zshrc "failed to write $(short_path "$rc")"
       return 1
     }
   fi
-  report sbx zshrc "added source line to $rc"
+  report_changed sbx zshrc "source line added"
 }
 
 install_nono() {
@@ -403,11 +495,13 @@ install_nono() {
 }
 
 for target in "${TARGETS[@]}"; do
+  begin_group "$target"
   case "$target" in
     skills) install_all_tools ;;
     sbx)    install_sbx ;;
     nono)   install_nono ;;
   esac
+  end_group
 done
 
 [ "$FAILED" != true ] || exit 1

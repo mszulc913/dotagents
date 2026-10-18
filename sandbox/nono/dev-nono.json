@@ -13,6 +13,7 @@
       "rust_runtime",
       "git_config",
       "linux_sysfs_read",
+      "linux_temp_read",
       "unlink_protection"
     ]
   },
