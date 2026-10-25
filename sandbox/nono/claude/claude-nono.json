@@ -1,6 +1,6 @@
 {
   "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
-  "extends": ["dev-nono", "claude-nono-base"],
+  "extends": ["dev-nono", "chrome-nono-base", "claude-nono-base"],
   "meta": {
     "name": "claude-nono",
     "version": "1.0.0",

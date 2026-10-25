@@ -33,6 +33,7 @@
       "$HOME/.cargo/git",
       "$HOME/.cache/huggingface",
       "$HOME/.cache/torch",
+      "$XDG_CACHE_HOME/ricky",
       "$HOME/.cache/torch_extensions",
       "$HOME/.triton",
       "$HOME/.nv"
@@ -107,7 +108,23 @@
       "huggingface.co",
       "*.huggingface.co",
       "hf.co",
-      "*.hf.co"
+      "*.hf.co",
+      "mcp.exa.ai",
+      "mlcommons.org",
+      "s3.amazonaws.com",
+      "www.openslr.org"
     ]
+  },
+  "platform_overrides": {
+    "linux": {
+      "network": {
+        "open_port_range": [[32768, 60999]]
+      }
+    },
+    "macos": {
+      "network": {
+        "open_port": [0]
+      }
+    }
   }
 }

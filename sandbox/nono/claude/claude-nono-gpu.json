@@ -1,6 +1,6 @@
 {
   "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
-  "extends": ["dev-nono-gpu", "claude-nono-base"],
+  "extends": ["dev-nono-gpu", "chrome-nono-base", "claude-nono-base"],
   "meta": {
     "name": "claude-nono-gpu",
     "version": "1.0.0",

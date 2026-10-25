@@ -1,6 +1,6 @@
 {
   "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
-  "extends": ["dev-nono", "maki-nono-base"],
+  "extends": ["dev-nono", "chrome-nono-base", "maki-nono-base"],
   "meta": {
     "name": "maki-nono",
     "version": "1.0.0",

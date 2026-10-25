@@ -8,6 +8,7 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}"
 
 profile="$agent-nono"
 gpu_args=()
+agent_args=()
 if [ "${1:-}" = --gpu ]; then
   profile="$agent-nono-gpu"
   gpu_args=(--allow-gpu)
@@ -25,13 +26,16 @@ case "$agent" in
     if [ "$profile" = maki-nono-gpu ]; then
       mkdir -p "$state/maki"
     fi
+    agent_args=(--yolo)
     ;;
   *)
     echo "unknown agent '$agent': install this script as claude-nono or maki-nono" >&2
     exit 2
     ;;
 esac
-mkdir -p "$state/$profile"
+chrome_tmp="$state/nono-chrome-tmp"
+mkdir -p "$state/$profile" "$HOME/.cache/chrome-devtools-mcp/chrome-profile" "$chrome_tmp"
+export TMPDIR="$chrome_tmp"
 
 cwd_args=(--allow-cwd)
 if ! preflight="$(nono run -s --profile "$profile" "${gpu_args[@]}" --allow-cwd --dry-run -- true 2>&1)"; then
@@ -47,4 +51,4 @@ if ! preflight="$(nono run -s --profile "$profile" "${gpu_args[@]}" --allow-cwd 
   esac
 fi
 
-exec nono run --profile "$profile" "${gpu_args[@]}" "${cwd_args[@]}" -- "$agent" "$@"
+exec nono run --profile "$profile" "${gpu_args[@]}" "${cwd_args[@]}" -- "$agent" "${agent_args[@]}" "$@"

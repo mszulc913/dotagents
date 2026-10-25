@@ -6,7 +6,8 @@ INSTRUCTIONS_SRC="$REPO_DIR/AGENTS.md"
 SKILLS_SRC="$REPO_DIR/skills"
 SBX_SRC="$REPO_DIR/sandbox/sbx/maki"
 NONO_SRC="$REPO_DIR/sandbox/nono"
-TARGET_NAMES=(skills sbx nono)
+MAKI_MCP_SRC="$REPO_DIR/config/maki/mcp.toml"
+TARGET_NAMES=(skills mcp sbx nono)
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 usage() {
@@ -16,6 +17,8 @@ Usage: install.sh [target...] [-f|--force] [-v|--verbose] [-H|--home <dir>] [-h|
 Targets:
   skills   AGENTS.md + skills/ into the config folders of claude, codex,
            pi, maki and opencode
+  mcp      copies the Maki MCP config to ~/.config/maki/mcp.toml, replacing
+           an existing file only after confirmation
   sbx      builds the maki sandbox image, sets the openrouter secret, installs
            a 'maki-sbx' zsh alias and sources it from .zshrc. Set SBX_NO_CACHE
            to rebuild the image layers and upgrade the bundled maki.
@@ -165,6 +168,7 @@ ask() {
 describe_target() {
   case "$1" in
     skills) echo "AGENTS.md + skills for claude, codex, pi, maki and opencode" ;;
+    mcp)    echo "Maki MCP config" ;;
     sbx)    echo "maki-sbx, maki in a Docker Sandboxes microVM" ;;
     nono)   echo "claude-nono and maki-nono, agents in a nono sandbox" ;;
   esac
@@ -184,7 +188,7 @@ VERBOSE=false
 DEST_HOME="$HOME"
 while [ $# -gt 0 ]; do
   case "$1" in
-    skills|sbx|nono) add_target "$1" ;;
+    skills|mcp|sbx|nono) add_target "$1" ;;
     all)
       for target in "${TARGET_NAMES[@]}"; do
         add_target "$target"
@@ -222,6 +226,7 @@ fi
 
 for target in "${TARGETS[@]}"; do
   case "$target" in
+    mcp)  [ -f "$MAKI_MCP_SRC" ] || die "$MAKI_MCP_SRC not found" ;;
     sbx)  [ -d "$SBX_SRC" ] || die "$SBX_SRC not found" ;;
     nono) [ -d "$NONO_SRC" ] || die "$NONO_SRC not found" ;;
   esac
@@ -369,6 +374,10 @@ install_all_tools() {
   install_tool opencode "$DEST_HOME/.config/opencode/AGENTS.md"  "$DEST_HOME/.config/opencode/skills"
 }
 
+install_mcp() {
+  install_copy mcp config "$MAKI_MCP_SRC" "$DEST_HOME/.config/maki/mcp.toml" 644 || record $?
+}
+
 build_sbx() {
   command -v docker >/dev/null || {
     report_skipped sbx build "skipped: docker not found"
@@ -500,6 +509,7 @@ for target in "${TARGETS[@]}"; do
   begin_group "$target"
   case "$target" in
     skills) install_all_tools ;;
+    mcp)    install_mcp ;;
     sbx)    install_sbx ;;
     nono)   install_nono ;;
   esac

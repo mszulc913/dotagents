@@ -1,0 +1,56 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "meta": {
+    "name": "chrome-nono-base",
+    "version": "1.0.0",
+    "description": "Headless Chrome for chrome-devtools-mcp and local app screenshots"
+  },
+  "filesystem": {
+    "read": [
+      "/opt/google/chrome"
+    ],
+    "allow": [
+      "$XDG_CACHE_HOME/chrome-devtools-mcp",
+      "$HOME/.cache/chrome-devtools-mcp",
+      "$XDG_STATE_HOME/nono-chrome-tmp"
+    ],
+    "unix_socket_dir_bind": [
+      "$HOME/.cache/chrome-devtools-mcp/chrome-profile"
+    ],
+    "unix_socket_subtree_bind": [
+      "$XDG_STATE_HOME/nono-chrome-tmp"
+    ]
+  },
+  "environment": {
+    "set_vars": {
+      "PUPPETEER_DANGEROUS_NO_SANDBOX": "true"
+    }
+  },
+  "network": {
+    "allow_domain": [
+      "registry.npmjs.org"
+    ],
+    "open_port": [
+      3000,
+      3001,
+      3333,
+      4173,
+      4200,
+      4321,
+      5000,
+      5173,
+      5174,
+      5500,
+      6006,
+      7860,
+      8000,
+      8001,
+      8080,
+      8081,
+      8501,
+      8888,
+      9000,
+      9222
+    ]
+  }
+}
