@@ -10,11 +10,26 @@ Work the tree in rounds. The frontier is every decision whose prerequisites are 
 Build each question in the call like this:
 
 - `header`: a short tab label that names the decision, not the answer.
-- `question`: the question body. It may span paragraphs or list choices.
-- `options`: the meaningful choices, with your recommended answer first and marked `(Recommended)`. A custom answer is always available, so options are optional; ask a plain open question when no choices make sense.
+- `question`: the question body. It may span paragraphs.
+- `options`: the concrete ways to answer, your recommended answer first and marked `(Recommended)`. Give two to four real choices whenever the decision has them. The operator then answers with one keystroke instead of typing. Put the trade-off of an option in its description when the label alone does not make the choice clear.
 - `multiSelect`: set when the choices are not mutually exclusive.
 
-Recommend an answer for every question. Do not leave the recommendation in prose outside the call when an option can carry it.
+The question tool appends its own `Type your answer` entry. Never add a catch-all option. Ask a plain open question only when every menu choice would be a guess that biases the operator. That case is rare.
+
+Recommend an answer for every question. Do not leave the recommendation in prose outside the call when an option can carry it. Do not pad a menu with filler choices: every option must be one you would accept.
+
+```text
+Question
+Should sessions expire server-side?
+
+1. Yes, sliding 30-minute idle timeout (Recommended)
+   No revocation list, matches the existing token TTL.
+2. Yes, hard 8-hour expiry
+   Easier to reason about, forces a re-login mid-day.
+3. No, keep tokens until refresh
+   Less code, but a leaked token lives until refresh.
+4. Type your answer
+```
 
 Each round of answers reshapes the tree: settled decisions push the frontier outward and unblock questions that depended on them. Recompute the frontier and ask the next round. If a question's answer depends on another question still open in this round, it belongs to a later round.
 
