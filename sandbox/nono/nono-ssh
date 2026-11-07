@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+if [ -z "$proxy" ]; then
+  echo "nono-ssh: HTTPS_PROXY is not set" >&2
+  exit 1
+fi
+proxy="${proxy#*://}"
+proxy="${proxy##*@}"
+
+known_hosts="${GIT_SSH_KNOWN_HOSTS:-$HOME/.local/state/nono-ssh/known_hosts}"
+
+exec ssh -F /dev/null \
+  -o "ProxyCommand=nc -X connect -x $proxy %h %p" \
+  -o "UserKnownHostsFile=$known_hosts" \
+  -o StrictHostKeyChecking=accept-new \
+  -o IdentityFile=none \
+  -o BatchMode=yes \
+  -o ConnectTimeout=15 \
+  "$@"

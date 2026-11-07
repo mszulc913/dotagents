@@ -1,0 +1,13 @@
+[mcp.chrome-devtools]
+command = [
+    "npx", "-y", "chrome-devtools-mcp@latest",
+    "--headless",
+    "--isolated",
+    "--executablePath=/opt/google/chrome/chrome",
+    "--viewport=1280x800",
+    "--workspace=.",
+    "--chrome-arg=--no-sandbox",
+    "--chrome-arg=--disable-dev-shm-usage",
+    "--no-usage-statistics",
+]
+timeout = 60000

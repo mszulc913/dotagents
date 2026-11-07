@@ -1,0 +1,30 @@
+{
+  "$schema": "https://nono.sh/schemas/nono-profile.schema.json",
+  "meta": {
+    "name": "push-nono-base",
+    "version": "1.0.0",
+    "description": "Git push over the nono proxy with ssh-agent signing"
+  },
+  "filesystem": {
+    "allow": [
+      "$HOME/.local/state/nono-ssh"
+    ],
+    "unix_socket": [
+      "$SSH_AUTH_SOCK"
+    ]
+  },
+  "environment": {
+    "allow_vars": [
+      "SSH_AUTH_SOCK",
+      "GIT_SSH_KNOWN_HOSTS"
+    ],
+    "set_vars": {
+      "GIT_SSH_COMMAND": "$HOME/.local/bin/nono-ssh"
+    }
+  },
+  "network": {
+    "allow_domain": [
+      "github.com"
+    ]
+  }
+}

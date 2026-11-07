@@ -22,11 +22,12 @@ Targets:
   sbx      builds the maki sandbox image, sets the openrouter secret, installs
            a 'maki-sbx' zsh alias and sources it from .zshrc. Set SBX_NO_CACHE
            to rebuild the image layers and upgrade the bundled maki.
-  nono     copies the nono profiles into nono's profile folder and the
-           claude-nono and maki-nono launchers to ~/.local/bin, and links
-           AGENTS.md + skills/ into the sandboxed Claude config folders. These
-           are copies, not links: the sandbox can write ~/git, so it must not
-           edit its policy.
+  nono     copies the nono profiles into nono's profile folder, the
+           claude-nono and maki-nono launchers and the nono-ssh helper to
+           ~/.local/bin, and links AGENTS.md + skills/ into the sandboxed
+           Claude config folders. These are copies, not links: the sandbox can
+           write ~/git, so it must not edit its policy. Add --push to a launcher
+           to allow git push through the nono proxy.
   all      all of the above
 
 Without a target, install.sh asks about each target. An empty answer, or no
@@ -500,6 +501,7 @@ install_nono() {
     name="$(basename "$dir")-nono"
     install_copy nono "launcher $name" "$NONO_SRC/run.sh" "$DEST_HOME/.local/bin/$name" 755 || record $?
   done
+  install_copy nono "ssh helper" "$NONO_SRC/nono-ssh" "$DEST_HOME/.local/bin/nono-ssh" 755 || record $?
 
   install_tool claude-nono     "$state/claude-nono/CLAUDE.md"     "$state/claude-nono/skills"
   install_tool claude-nono-gpu "$state/claude-nono-gpu/CLAUDE.md" "$state/claude-nono-gpu/skills"

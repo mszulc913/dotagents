@@ -4,7 +4,7 @@
   "meta": {
     "name": "maki-nono",
     "version": "1.0.0",
-    "description": "Maki with AF_UNIX isolation and phantom OpenRouter and OpenAI credentials, no CUDA"
+    "description": "Maki with AF_UNIX isolation and phantom OpenRouter, Mistral, and OpenAI credentials, no CUDA"
   },
   "filesystem": {
     "allow": [
@@ -17,7 +17,7 @@
     }
   },
   "network": {
-    "credentials": ["openrouter"],
+    "credentials": ["openrouter", "mistral"],
     "custom_credentials": {
       "openrouter": {
         "upstream": "https://openrouter.ai/api/v1",
@@ -25,6 +25,13 @@
         "inject_header": "Authorization",
         "credential_format": "Bearer {}",
         "env_var": "OPENROUTER_API_KEY"
+      },
+      "mistral": {
+        "upstream": "https://api.mistral.ai/v1",
+        "credential_key": "mistral_api_key",
+        "inject_header": "Authorization",
+        "credential_format": "Bearer {}",
+        "env_var": "MISTRAL_API_KEY"
       }
     }
   },
